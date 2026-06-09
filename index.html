@@ -1,129 +1,132 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pixelboy Analytics Pro</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pixelboy Analytics Pro v2</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{margin:0;background:#0b1220;color:#fff;font-family:Arial,sans-serif}
-.container{max-width:1400px;margin:auto;padding:20px}
-.hero,.card{background:#131c31;border-radius:18px;padding:18px;margin-bottom:18px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}
-.stat{background:#1a2642;padding:15px;border-radius:14px}
-.stat h2{margin:8px 0}
-canvas{background:#fff;border-radius:12px;padding:10px}
-.release{background:#1a2642;margin:10px 0;padding:12px;border-radius:12px}
-.asset{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2c3b61}
-input{width:100%;padding:10px;border-radius:10px;border:none}
-.badge{background:#2563eb;padding:4px 10px;border-radius:999px}
+body{margin:0;background:#081224;color:#fff;font-family:Arial,sans-serif}
+.wrap{max-width:1200px;margin:auto;padding:20px}
+.card{background:#12203d;border-radius:18px;padding:18px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+h1{margin:0}
+button{padding:12px 18px;border:none;border-radius:10px;font-weight:bold;cursor:pointer}
+.primary{background:#4da3ff}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#1f3d73}
+canvas{background:#fff;border-radius:12px;padding:10px;margin-top:10px}
+.small{opacity:.8}
 </style>
 </head>
 <body>
-<div class="container">
-<div class="hero">
-<h1>🚀 Pixelboy Minecraft Patch Analytics Pro</h1>
-<p>GitHub Release Intelligence Dashboard</p>
+<div class="wrap">
+<div class="card">
+<h1> Pixelboy Patch Analytics Pro v2</h1>
+<p class="small">Manual refresh + local cache</p>
+<button class="primary" onclick="refreshStats()">🔄 Refresh Stats</button>
+<p id="status">Loading cached data...</p>
+<p id="updated"></p>
 </div>
 
 <div class="grid">
-<div class="stat"><small>Total Downloads</small><h2 id="totalDownloads">...</h2></div>
-<div class="stat"><small>Total Releases</small><h2 id="totalReleases">...</h2></div>
-<div class="stat"><small>Total Assets</small><h2 id="totalAssets">...</h2></div>
-<div class="stat"><small>Top Release</small><h2 id="topRelease">...</h2></div>
+<div class="card"><h3>Total Downloads</h3><h2 id="downloads">-</h2></div>
+<div class="card"><h3>Total Releases</h3><h2 id="releases">-</h2></div>
+<div class="card"><h3>Total Assets</h3><h2 id="assets">-</h2></div>
+<div class="card"><h3>Top Release</h3><h2 id="top">-</h2></div>
 </div>
 
 <div class="card"><canvas id="releaseChart"></canvas></div>
 <div class="card"><canvas id="archChart"></canvas></div>
-<div class="card"><canvas id="assetChart"></canvas></div>
-
-<div class="card">
-<h2>🔍 Search Releases</h2>
-<input id="search" placeholder="Search release...">
-</div>
-
-<div class="card">
-<h2>📦 Release Explorer</h2>
-<div id="releases"></div>
-</div>
 </div>
 
 <script>
 const API='https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases';
+let releaseChart,archChart;
 
-async function load(){
-const releases=await fetch(API).then(r=>r.json());
+function render(data){
+ let total=0, assets=0, arm64=0, arm32=0;
+ let releaseData=[];
+ let topName='-', topCount=0;
 
-let totalDownloads=0,totalAssets=0;
-let releaseData=[];
-let assetData=[];
-let arm64=0,arm32=0;
-let top={name:'-',downloads:0};
+ data.forEach(r=>{
+   let relTotal=0;
+   r.assets.forEach(a=>{
+      total+=a.download_count;
+      assets++;
+      relTotal+=a.download_count;
 
-for(const rel of releases){
- let relDownloads=0;
+      const n=a.name.toLowerCase();
+      if(n.includes('arm64')) arm64+=a.download_count;
+      if(n.includes('arm32')) arm32+=a.download_count;
+   });
 
- for(const asset of rel.assets){
-   totalDownloads+=asset.download_count;
-   totalAssets++;
-   relDownloads+=asset.download_count;
+   releaseData.push({name:r.name,downloads:relTotal});
 
-   assetData.push({name:asset.name,downloads:asset.download_count});
+   if(relTotal>topCount){
+      topCount=relTotal;
+      topName=r.name;
+   }
+ });
 
-   const n=asset.name.toLowerCase();
-   if(n.includes('arm64')) arm64+=asset.download_count;
-   if(n.includes('arm32')) arm32+=asset.download_count;
+ document.getElementById('downloads').textContent=total.toLocaleString();
+ document.getElementById('releases').textContent=data.length;
+ document.getElementById('assets').textContent=assets;
+ document.getElementById('top').textContent=topName;
+
+ if(releaseChart) releaseChart.destroy();
+ releaseChart=new Chart(document.getElementById('releaseChart'),{
+   type:'bar',
+   data:{
+      labels:releaseData.map(x=>x.name),
+      datasets:[{label:'Downloads',data:releaseData.map(x=>x.downloads)}]
+   }
+ });
+
+ if(archChart) archChart.destroy();
+ archChart=new Chart(document.getElementById('archChart'),{
+   type:'pie',
+   data:{
+      labels:['Arm64','Arm32'],
+      datasets:[{data:[arm64,arm32]}]
+   }
+ });
+}
+
+async function refreshStats(){
+ try{
+   document.getElementById('status').textContent='Fetching from GitHub...';
+   const data=await fetch(API).then(r=>r.json());
+
+   if(data.message){
+      throw new Error(data.message);
+   }
+
+   localStorage.setItem('pixelboy_cache',JSON.stringify(data));
+   localStorage.setItem('pixelboy_updated',new Date().toLocaleString());
+
+   render(data);
+
+   document.getElementById('status').textContent='✅ Live data loaded';
+   document.getElementById('updated').textContent='Last Updated: '+localStorage.getItem('pixelboy_updated');
+
+ }catch(e){
+   document.getElementById('status').textContent='⚠️ Using cached data';
+   loadCache();
  }
-
- releaseData.push({name:rel.name,downloads:relDownloads});
- if(relDownloads>top.downloads) top={name:rel.name,downloads:relDownloads};
 }
 
-document.getElementById('totalDownloads').innerText=totalDownloads.toLocaleString();
-document.getElementById('totalReleases').innerText=releases.length;
-document.getElementById('totalAssets').innerText=totalAssets;
-document.getElementById('topRelease').innerText=top.name;
+function loadCache(){
+ const cache=localStorage.getItem('pixelboy_cache');
 
-new Chart(document.getElementById('releaseChart'),{
- type:'bar',
- data:{labels:releaseData.map(x=>x.name),
- datasets:[{label:'Downloads',data:releaseData.map(x=>x.downloads)}]}
-});
-
-new Chart(document.getElementById('archChart'),{
- type:'pie',
- data:{labels:['Arm64','Arm32'],
- datasets:[{data:[arm64,arm32]}]}
-});
-
-assetData.sort((a,b)=>b.downloads-a.downloads);
-const topAssets=assetData.slice(0,10);
-
-new Chart(document.getElementById('assetChart'),{
- type:'bar',
- data:{labels:topAssets.map(x=>x.name),
- datasets:[{label:'Top Downloads',data:topAssets.map(x=>x.downloads)}]},
- options:{indexAxis:'y'}
-});
-
-const wrap=document.getElementById('releases');
-releases.forEach(rel=>{
- let html=`<div class="release"><h3>${rel.name} <span class="badge">${rel.tag_name}</span></h3>`;
- rel.assets.forEach(a=>{
-   html+=`<div class="asset"><span>${a.name}</span><b>${a.download_count} downloads</b></div>`;
- });
- html+='</div>';
- wrap.innerHTML+=html;
-});
-
-document.getElementById('search').addEventListener('input',e=>{
- const q=e.target.value.toLowerCase();
- document.querySelectorAll('.release').forEach(r=>{
-   r.style.display=r.innerText.toLowerCase().includes(q)?'block':'none';
- });
-});
+ if(cache){
+   render(JSON.parse(cache));
+   document.getElementById('updated').textContent='Last Updated: '+(localStorage.getItem('pixelboy_updated')||'Unknown');
+ }else{
+   document.getElementById('status').textContent='No cached data yet. Press Refresh Stats.';
+ }
 }
-load();
+
+loadCache();
 </script>
 </body>
 </html>
