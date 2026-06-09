@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecraft Patch Download Stats</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:900px;margin:20px auto;padding:20px}
+.card{border:1px solid #ccc;border-radius:8px;padding:12px;margin:10px 0}
+</style>
+</head>
+<body>
+<h1>Minecraft Patch Download Stats</h1>
+<p>Repository: Pixelboy79/Minecraft-Patch-1.26-</p>
+<p>API: <code>https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases</code></p>
+<button onclick="loadStats()">Refresh Stats</button>
+<div id="stats"></div>
+
+<script>
+async function loadStats() {
+  const url = "https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases";
+  const releases = await fetch(url).then(r => r.json());
+  let total = 0;
+  let html = "";
+
+  releases.forEach(release => {
+    html += `<div class="card"><h3>${release.name}</h3>`;
+    release.assets.forEach(asset => {
+      total += asset.download_count;
+      html += `<div>${asset.name} — <b>${asset.download_count}</b> downloads</div>`;
+    });
+    html += "</div>";
+  });
+
+  document.getElementById("stats").innerHTML =
+    `<h2>Total Downloads: ${total}</h2>` + html;
+}
+loadStats();
+</script>
+</body>
+</html>
