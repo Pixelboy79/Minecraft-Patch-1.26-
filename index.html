@@ -1,41 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Minecraft Patch Download Stats</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixelboy Analytics Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{font-family:Arial,sans-serif;max-width:900px;margin:20px auto;padding:20px}
-.card{border:1px solid #ccc;border-radius:8px;padding:12px;margin:10px 0}
+body{margin:0;background:#0b1220;color:#fff;font-family:Arial,sans-serif}
+.container{max-width:1400px;margin:auto;padding:20px}
+.hero,.card{background:#131c31;border-radius:18px;padding:18px;margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}
+.stat{background:#1a2642;padding:15px;border-radius:14px}
+.stat h2{margin:8px 0}
+canvas{background:#fff;border-radius:12px;padding:10px}
+.release{background:#1a2642;margin:10px 0;padding:12px;border-radius:12px}
+.asset{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2c3b61}
+input{width:100%;padding:10px;border-radius:10px;border:none}
+.badge{background:#2563eb;padding:4px 10px;border-radius:999px}
 </style>
 </head>
 <body>
-<h1>Minecraft Patch Download Stats</h1>
-<p>Repository: Pixelboy79/Minecraft-Patch-1.26-</p>
-<p>API: <code>https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases</code></p>
-<button onclick="loadStats()">Refresh Stats</button>
-<div id="stats"></div>
+<div class="container">
+<div class="hero">
+<h1>🚀 Pixelboy Minecraft Patch Analytics Pro</h1>
+<p>GitHub Release Intelligence Dashboard</p>
+</div>
+
+<div class="grid">
+<div class="stat"><small>Total Downloads</small><h2 id="totalDownloads">...</h2></div>
+<div class="stat"><small>Total Releases</small><h2 id="totalReleases">...</h2></div>
+<div class="stat"><small>Total Assets</small><h2 id="totalAssets">...</h2></div>
+<div class="stat"><small>Top Release</small><h2 id="topRelease">...</h2></div>
+</div>
+
+<div class="card"><canvas id="releaseChart"></canvas></div>
+<div class="card"><canvas id="archChart"></canvas></div>
+<div class="card"><canvas id="assetChart"></canvas></div>
+
+<div class="card">
+<h2>🔍 Search Releases</h2>
+<input id="search" placeholder="Search release...">
+</div>
+
+<div class="card">
+<h2>📦 Release Explorer</h2>
+<div id="releases"></div>
+</div>
+</div>
 
 <script>
-async function loadStats() {
-  const url = "https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases";
-  const releases = await fetch(url).then(r => r.json());
-  let total = 0;
-  let html = "";
+const API='https://api.github.com/repos/Pixelboy79/Minecraft-Patch-1.26-/releases';
 
-  releases.forEach(release => {
-    html += `<div class="card"><h3>${release.name}</h3>`;
-    release.assets.forEach(asset => {
-      total += asset.download_count;
-      html += `<div>${asset.name} — <b>${asset.download_count}</b> downloads</div>`;
-    });
-    html += "</div>";
-  });
+async function load(){
+const releases=await fetch(API).then(r=>r.json());
 
-  document.getElementById("stats").innerHTML =
-    `<h2>Total Downloads: ${total}</h2>` + html;
+let totalDownloads=0,totalAssets=0;
+let releaseData=[];
+let assetData=[];
+let arm64=0,arm32=0;
+let top={name:'-',downloads:0};
+
+for(const rel of releases){
+ let relDownloads=0;
+
+ for(const asset of rel.assets){
+   totalDownloads+=asset.download_count;
+   totalAssets++;
+   relDownloads+=asset.download_count;
+
+   assetData.push({name:asset.name,downloads:asset.download_count});
+
+   const n=asset.name.toLowerCase();
+   if(n.includes('arm64')) arm64+=asset.download_count;
+   if(n.includes('arm32')) arm32+=asset.download_count;
+ }
+
+ releaseData.push({name:rel.name,downloads:relDownloads});
+ if(relDownloads>top.downloads) top={name:rel.name,downloads:relDownloads};
 }
-loadStats();
+
+document.getElementById('totalDownloads').innerText=totalDownloads.toLocaleString();
+document.getElementById('totalReleases').innerText=releases.length;
+document.getElementById('totalAssets').innerText=totalAssets;
+document.getElementById('topRelease').innerText=top.name;
+
+new Chart(document.getElementById('releaseChart'),{
+ type:'bar',
+ data:{labels:releaseData.map(x=>x.name),
+ datasets:[{label:'Downloads',data:releaseData.map(x=>x.downloads)}]}
+});
+
+new Chart(document.getElementById('archChart'),{
+ type:'pie',
+ data:{labels:['Arm64','Arm32'],
+ datasets:[{data:[arm64,arm32]}]}
+});
+
+assetData.sort((a,b)=>b.downloads-a.downloads);
+const topAssets=assetData.slice(0,10);
+
+new Chart(document.getElementById('assetChart'),{
+ type:'bar',
+ data:{labels:topAssets.map(x=>x.name),
+ datasets:[{label:'Top Downloads',data:topAssets.map(x=>x.downloads)}]},
+ options:{indexAxis:'y'}
+});
+
+const wrap=document.getElementById('releases');
+releases.forEach(rel=>{
+ let html=`<div class="release"><h3>${rel.name} <span class="badge">${rel.tag_name}</span></h3>`;
+ rel.assets.forEach(a=>{
+   html+=`<div class="asset"><span>${a.name}</span><b>${a.download_count} downloads</b></div>`;
+ });
+ html+='</div>';
+ wrap.innerHTML+=html;
+});
+
+document.getElementById('search').addEventListener('input',e=>{
+ const q=e.target.value.toLowerCase();
+ document.querySelectorAll('.release').forEach(r=>{
+   r.style.display=r.innerText.toLowerCase().includes(q)?'block':'none';
+ });
+});
+}
+load();
 </script>
 </body>
 </html>
